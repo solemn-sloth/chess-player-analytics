@@ -19,36 +19,43 @@ class ChessAnalyzer:
         else:
             self.insight_generator = insight_generator
     
-    def analyze(self, num_games=100, days=30):
-        """Run complete analysis"""
+    def analyze(self, num_games=100, days=30, progress_callbacks=None):
+        """Run complete analysis with progress reporting"""
+        # Initialize default callbacks if not provided
+        if progress_callbacks is None:
+            progress_callbacks = {
+                'fetch': lambda x, y: None,
+                'analyze': lambda x, y: None,
+                'insights': lambda x, y: None
+            }
         
         # Step 1: Fetch data
-        print(f"Fetching games for {self.username}...")
-        games_json = self.data_fetcher.fetch_games(self.username, num_games, days)
+        games_json = self.data_fetcher.fetch_games(
+            self.username, num_games, days, 
+            progress_callbacks.get('fetch')
+        )
         stats_data = self.data_fetcher.fetch_player_stats(self.username)
         
         if not games_json:
-            print("No games found!")
             return None, None
         
-        # Step 2: Parse games
-        print("Parsing games...")
+        # Step 2: Parse games and calculate metrics
         parsed_games = []
+        total_games = len(games_json)
+        
         for i, game in enumerate(games_json):
-            if i % 20 == 0:
-                print(f"Parsed {i}/{len(games_json)} games...")
-            
             try:
                 parsed = self.game_parser.parse_game(game, self.username)
                 parsed_games.append(parsed)
+                
+                # Update progress
+                if progress_callbacks.get('analyze'):
+                    progress_callbacks['analyze'](i + 1, total_games)
+                    
             except Exception as e:
-                print(f"Error parsing game: {e}")
                 continue
         
-        print(f"Successfully parsed {len(parsed_games)} games")
-        
         # Step 3: Calculate metrics
-        print("Calculating metrics...")
         metrics = self.metrics_calculator.calculate_all_metrics(parsed_games)
         
         # Add player info to metrics
@@ -64,15 +71,26 @@ class ChessAnalyzer:
         metrics['basic_stats']['current_rating'] = current_rating
         metrics['basic_stats']['rating_level'] = self._get_rating_level(current_rating)
         
-        # Step 4: Generate insights
-        print("Generating insights...")
-        insights = {
-            'priorities': self.insight_generator.generate_priorities(metrics),
-            'strengths': self.insight_generator.generate_strengths(metrics),
-            'recommendations': self.insight_generator.generate_recommendations(metrics),
-            'patterns': self.insight_generator.generate_patterns(metrics),
-            'projections': self.insight_generator.generate_projections(metrics)
-        }
+        # Step 4: Generate insights with progress reporting
+        insights = {}
+        insight_types = ['priorities', 'strengths', 'recommendations', 'patterns', 'projections']
+        total_insights = len(insight_types)
+        
+        for i, insight_type in enumerate(insight_types):
+            if insight_type == 'priorities':
+                insights['priorities'] = self.insight_generator.generate_priorities(metrics)
+            elif insight_type == 'strengths':
+                insights['strengths'] = self.insight_generator.generate_strengths(metrics)
+            elif insight_type == 'recommendations':
+                insights['recommendations'] = self.insight_generator.generate_recommendations(metrics)
+            elif insight_type == 'patterns':
+                insights['patterns'] = self.insight_generator.generate_patterns(metrics)
+            elif insight_type == 'projections':
+                insights['projections'] = self.insight_generator.generate_projections(metrics)
+                
+            # Update progress
+            if progress_callbacks.get('insights'):
+                progress_callbacks['insights'](i + 1, total_insights)
         
         return metrics, insights
     

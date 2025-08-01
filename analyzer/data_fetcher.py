@@ -10,10 +10,8 @@ class DataFetcher:
         self.session = requests.Session()
         self.session.headers.update(self.headers)
     
-    def fetch_games(self, username, num_games=100, days=30):
+    def fetch_games(self, username, num_games=100, days=30, progress_callback=None):
         """Fetch games from Chess.com API with option to limit by time period"""
-        print(f"Fetching {num_games} games for {username} from the past {days} days...")
-        
         # Get archives
         archives = self._get_archives(username)
         if not archives:
@@ -39,13 +37,16 @@ class DataFetcher:
                 month_games = filtered_games
             
             games.extend(month_games)
-            print(f"Fetched {len(games)} games so far...")
+            
+            # Update progress if callback provided
+            if progress_callback and num_games > 0:
+                progress = min(len(games), num_games)
+                progress_callback(progress, num_games)
         
         return games[:num_games]
     
     def fetch_player_stats(self, username):
         """Fetch player statistics from Chess.com API"""
-        print(f"Fetching stats for {username}...")
         
         response = self.session.get(f"https://api.chess.com/pub/player/{username}/stats")
         if response.status_code != 200:
